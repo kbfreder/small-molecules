@@ -1,0 +1,1070 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<script type=\"text/javascript\">window.PlotlyConfig = {MathJaxConfig: 'local'};</script><script type=\"text/javascript\">if (window.MathJax) {MathJax.Hub.Config({SVG: {font: \"STIX-Web\"}});}</script><script>requirejs.config({paths: { 'plotly': ['https://cdn.plot.ly/plotly-latest.min']},});if(!window._Plotly) {require(['plotly'],function(plotly) {window._Plotly=plotly;});}</script>"
+      ],
+      "text/vnd.plotly.v1+html": [
+       "<script type=\"text/javascript\">window.PlotlyConfig = {MathJaxConfig: 'local'};</script><script type=\"text/javascript\">if (window.MathJax) {MathJax.Hub.Config({SVG: {font: \"STIX-Web\"}});}</script><script>requirejs.config({paths: { 'plotly': ['https://cdn.plot.ly/plotly-latest.min']},});if(!window._Plotly) {require(['plotly'],function(plotly) {window._Plotly=plotly;});}</script>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "import plotly\n",
+    "import plotly.graph_objs as go\n",
+    "import plotly.plotly as py\n",
+    "\n",
+    "import numpy as np\n",
+    "\n",
+    "plotly.offline.init_notebook_mode(connected=True)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Make them be the same size"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# chart stages data\n",
+    "raw_values = [10000, 50, 10, 1]\n",
+    "values = np.log10(raw_values)\n",
+    "\n",
+    "phases = ['Discovery', 'Pre-Clinical', 'Clinical Trials', 'Approval']\n",
+    "lengths = [1.5, 1.5, (1.6 + 2.5 + 2.5), 0.5] # approval stage is actually 1.3 years, but this looks odd\n",
+    "left_length_adj = 1.0\n",
+    "\n",
+    "# color of each funnel section\n",
+    "colors = ['rgb(219,234,240)', 'rgb(168,202,219)', 'rgb(112,174,186)', 'rgb(74,122,148)'] \n",
+    "\n",
+    "n_phase = len(phases)\n",
+    "plot_height = 900\n",
+    "pad_h = 20\n",
+    "adj_plot_height = plot_height - (2 * pad_h)\n",
+    "plot_width = 1350\n",
+    "pad_w = 50\n",
+    "adj_plot_width = plot_width - (2 * pad_w)\n",
+    "\n",
+    "section_d = 10 # spacing between shapes\n",
+    "factor = 0.8\n",
+    "\n",
+    "# multiplication factor to calculate the height/width of other sections, based on max values\n",
+    "unit_height = adj_plot_height / max(values)\n",
+    "unit_width = adj_plot_width / max(lengths)\n",
+    "\n",
+    "# dimensions of each funnel section relative to the plot\n",
+    "phase_h = [int(value * unit_height * factor) for value in values]\n",
+    "phase_w = [int(length * unit_width * factor) for length in lengths]\n",
+    "\n",
+    "corr_last = phase_h[-2] / raw_values[-2]\n",
+    "phase_h = [x if x > 0 else corr_last for x in phase_h]\n",
+    "\n",
+    "x_max = np.sum(phase_w)*1.05\n",
+    "y_min = -(plot_height + 20)\n",
+    "y_max = plot_height"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "shapes = [] # list containing all the plot shapes\n",
+    "value_annots = [] # value annotation information\n",
+    "label_x = [] # lX-axis location for each section's name and value text\n",
+    "\n",
+    "width = 0\n",
+    "height = 0\n",
+    "\n",
+    "for i in range(n_phase):\n",
+    "        if (i == n_phase-1):\n",
+    "            # make this a point?\n",
+    "#             points = [width, phase_h[i], width + phase_w[i], phase_h[i]]\n",
+    "            shape = {\n",
+    "                'type': 'circle',\n",
+    "                'xref': 'x',\n",
+    "                'yref': 'y',\n",
+    "                'fillcolor': colors[i],\n",
+    "                'x0': width,\n",
+    "                'y0': -phase_h[i],\n",
+    "                'x1': width + phase_h[i],\n",
+    "                'y1': phase_h[i],\n",
+    "                'line': {\n",
+    "                    'color': colors[i],\n",
+    "                },\n",
+    "            }\n",
+    "            val_annot_x = width + (phase_h[i] / 2)\n",
+    "            \n",
+    "        else:\n",
+    "            points = [width, phase_h[i], width + phase_w[i], phase_h[i+1]]\n",
+    "            path = 'M {0} {1} L {2} {3} L {2} -{3} L {0} -{1} Z'.format(*points)\n",
+    "            shape = {\n",
+    "                'type': 'path',\n",
+    "                'path': path,\n",
+    "                'fillcolor': colors[i],\n",
+    "                'line': {\n",
+    "                    'width': 1,\n",
+    "                    'color': colors[i]\n",
+    "                        },\n",
+    "                'layer':'above'\n",
+    "                }\n",
+    "#             val_annot_x = width\n",
+    "            val_annot_x = width + section_d\n",
+    "\n",
+    "        value_annot = {\n",
+    "            'x': val_annot_x,\n",
+    "            'y': -(phase_h[i] + 50),\n",
+    "            'xref': 'x',\n",
+    "            'yref': 'y',\n",
+    "            'text': '{:,}'.format(raw_values[i]),\n",
+    "            'showarrow': False,\n",
+    "            'font': {\n",
+    "                'color': 'rgb(44,58,71)', # dark grey\n",
+    "                'size': 30\n",
+    "            },\n",
+    "        }\n",
+    "        \n",
+    "        shapes.append(shape)\n",
+    "        value_annots.append(value_annot)\n",
+    "        \n",
+    "        # phase label x-positions\n",
+    "        if (i == 0) | (i == n_phase-1):\n",
+    "            x_label = width + (phase_w[i] / 2) - 25\n",
+    "        else:\n",
+    "            x_label = width + (phase_w[i] / 2)       \n",
+    "        \n",
+    "        label_x.append(x_label)\n",
+    "    \n",
+    "        # increment width (time)\n",
+    "        width += phase_w[i] + section_d"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Compressed first shape:\n",
+    "i = 0\n",
+    "len_adj = int(left_length_adj * unit_width * factor)\n",
+    "points = [len_adj, phase_h[i], phase_w[i], phase_h[i+1]]\n",
+    "path = 'M {0} {1} L {2} {3} L {2} -{3} L {0} -{1} Z'.format(*points)\n",
+    "val_annot_x = len_adj + section_d\n",
+    "\n",
+    "compressed_shapes = [{\n",
+    "                'type': 'path',\n",
+    "                'path': path,\n",
+    "                'fillcolor': colors[i],\n",
+    "                'line': {\n",
+    "                    'width': 1,\n",
+    "                    'color': colors[i]\n",
+    "                        },\n",
+    "                'layer':'above'\n",
+    "                }]\n",
+    "\n",
+    "compressed_value_annots = [{\n",
+    "            'x': val_annot_x,\n",
+    "            'y': -(phase_h[i] + 50),\n",
+    "            'xref': 'x',\n",
+    "            'yref': 'y',\n",
+    "            'text': '{:,}'.format(raw_values[i]),\n",
+    "            'showarrow': False,\n",
+    "            'font': {\n",
+    "                'color': 'rgb(44,58,71)', # dark grey\n",
+    "                'size': 30\n",
+    "            },\n",
+    "        }]\n",
+    "\n",
+    "compressed_shapes.extend(shapes[1:])\n",
+    "compressed_value_annots.extend(value_annots[1:])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Compressed & short first shape:\n",
+    "i = 0\n",
+    "# len_adj = int(left_length_adj * unit_width * factor)\n",
+    "height_adj = 2000\n",
+    "reduced_height = int(np.log10(height_adj) * unit_height * factor)\n",
+    "\n",
+    "points = [len_adj, reduced_height, phase_w[i], phase_h[i+1]]\n",
+    "path = 'M {0} {1} L {2} {3} L {2} -{3} L {0} -{1} Z'.format(*points)\n",
+    "val_annot_x = len_adj + section_d\n",
+    "\n",
+    "short_shapes = [{\n",
+    "                'type': 'path',\n",
+    "                'path': path,\n",
+    "                'fillcolor': colors[i],\n",
+    "                'line': {\n",
+    "                    'width': 1,\n",
+    "                    'color': colors[i]\n",
+    "                        },\n",
+    "                'layer':'above'\n",
+    "                }]\n",
+    "\n",
+    "short_value_annots = [{\n",
+    "            'x': val_annot_x,\n",
+    "            'y': -(reduced_height + 50),\n",
+    "            'xref': 'x',\n",
+    "            'yref': 'y',\n",
+    "            'text': '{:,}'.format(height_adj),\n",
+    "            'showarrow': False,\n",
+    "            'font': {\n",
+    "                'color': 'rgb(44,58,71)', # dark grey\n",
+    "                'size': 30\n",
+    "            },\n",
+    "        }]\n",
+    "\n",
+    "short_shapes.extend(shapes[1:])\n",
+    "short_value_annots.extend(value_annots[1:])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Phase names\n",
+    "label_trace = go.Scatter(\n",
+    "    x=label_x,\n",
+    "    y=[(plot_height - 50)]*n_phase,\n",
+    "    mode='text',\n",
+    "    text=phases,\n",
+    "    textfont=dict(\n",
+    "        color='rgb(44,58,71,1)',\n",
+    "        size=30)\n",
+    ")\n",
+    "\n",
+    "data = [label_trace] \n",
+    "\n",
+    "# x-axis ticks\n",
+    "tick_labels = np.arange(0,11)\n",
+    "tick_vals = np.linspace(0, np.sum(phase_w), 11)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "application/vnd.plotly.v1+json": {
+       "config": {
+        "linkText": "Export to plot.ly",
+        "plotlyServerURL": "https://plot.ly",
+        "showLink": true
+       },
+       "data": [
+        {
+         "mode": "text",
+         "text": [
+          "Discovery",
+          "Pre-Clinical",
+          "Clinical Trials",
+          "Approval"
+         ],
+         "textfont": {
+          "color": "rgb(44,58,71,1)",
+          "size": 30
+         },
+         "type": "scatter",
+         "uid": "14492c1b-b023-4632-9732-331d5d57c1d8",
+         "x": [
+          88.5,
+          350.5,
+          974,
+          1496.5
+         ],
+         "y": [
+          850,
+          850,
+          850,
+          850
+         ]
+        }
+       ],
+       "layout": {
+        "annotations": [
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "10,000",
+          "x": 10,
+          "xref": "x",
+          "y": -738,
+          "yref": "y"
+         },
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "50",
+          "x": 247,
+          "xref": "x",
+          "y": -342,
+          "yref": "y"
+         },
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "10",
+          "x": 484,
+          "xref": "x",
+          "y": -222,
+          "yref": "y"
+         },
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "1",
+          "x": 1492.6,
+          "xref": "x",
+          "y": -67.2,
+          "yref": "y"
+         }
+        ],
+        "height": 900,
+        "margin": {
+         "l": 10,
+         "r": 10
+        },
+        "paper_bgcolor": "rgba(0,0,0,0)",
+        "plot_bgcolor": "rgba(0,0,0,0)",
+        "shapes": [
+         {
+          "fillcolor": "rgb(219,234,240)",
+          "layer": "above",
+          "line": {
+           "color": "rgb(219,234,240)",
+           "width": 1
+          },
+          "path": "M 0 688 L 227 292 L 227 -292 L 0 -688 Z",
+          "type": "path"
+         },
+         {
+          "fillcolor": "rgb(168,202,219)",
+          "layer": "above",
+          "line": {
+           "color": "rgb(168,202,219)",
+           "width": 1
+          },
+          "path": "M 237 292 L 464 172 L 464 -172 L 237 -292 Z",
+          "type": "path"
+         },
+         {
+          "fillcolor": "rgb(112,174,186)",
+          "layer": "above",
+          "line": {
+           "color": "rgb(112,174,186)",
+           "width": 1
+          },
+          "path": "M 474 172 L 1474 17.2 L 1474 -17.2 L 474 -172 Z",
+          "type": "path"
+         },
+         {
+          "fillcolor": "rgb(74,122,148)",
+          "line": {
+           "color": "rgb(74,122,148)"
+          },
+          "type": "circle",
+          "x0": 1484,
+          "x1": 1501.2,
+          "xref": "x",
+          "y0": -17.2,
+          "y1": 17.2,
+          "yref": "y"
+         }
+        ],
+        "showlegend": false,
+        "width": 1350,
+        "xaxis": {
+         "range": [
+          -50,
+          1605.45
+         ],
+         "showgrid": false,
+         "tickfont": {
+          "size": 28
+         },
+         "tickmode": "array",
+         "ticktext": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+         ],
+         "tickvals": [
+          0,
+          152.9,
+          305.8,
+          458.70000000000005,
+          611.6,
+          764.5,
+          917.4000000000001,
+          1070.3,
+          1223.2,
+          1376.1000000000001,
+          1529
+         ],
+         "title": "Time (years)",
+         "titlefont": {
+          "size": 28
+         },
+         "zeroline": false
+        },
+        "yaxis": {
+         "range": [
+          -920,
+          900
+         ],
+         "showgrid": false,
+         "showticklabels": false,
+         "title": "Number of candidates",
+         "titlefont": {
+          "size": 28
+         },
+         "zeroline": false
+        }
+       }
+      },
+      "text/html": [
+       "<div id=\"ec7bdc91-4303-47ac-a811-8a11e2e99d90\" style=\"height: 900px; width: 1350px;\" class=\"plotly-graph-div\"></div><script type=\"text/javascript\">require([\"plotly\"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL=\"https://plot.ly\";Plotly.newPlot(\"ec7bdc91-4303-47ac-a811-8a11e2e99d90\", [{\"mode\": \"text\", \"text\": [\"Discovery\", \"Pre-Clinical\", \"Clinical Trials\", \"Approval\"], \"textfont\": {\"color\": \"rgb(44,58,71,1)\", \"size\": 30}, \"x\": [88.5, 350.5, 974.0, 1496.5], \"y\": [850, 850, 850, 850], \"type\": \"scatter\", \"uid\": \"14492c1b-b023-4632-9732-331d5d57c1d8\"}], {\"annotations\": [{\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"10,000\", \"x\": 10, \"xref\": \"x\", \"y\": -738, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"50\", \"x\": 247, \"xref\": \"x\", \"y\": -342, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"10\", \"x\": 484, \"xref\": \"x\", \"y\": -222, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"1\", \"x\": 1492.6, \"xref\": \"x\", \"y\": -67.2, \"yref\": \"y\"}], \"height\": 900, \"margin\": {\"l\": 10, \"r\": 10}, \"paper_bgcolor\": \"rgba(0,0,0,0)\", \"plot_bgcolor\": \"rgba(0,0,0,0)\", \"shapes\": [{\"fillcolor\": \"rgb(219,234,240)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(219,234,240)\", \"width\": 1}, \"path\": \"M 0 688 L 227 292 L 227 -292 L 0 -688 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(168,202,219)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(168,202,219)\", \"width\": 1}, \"path\": \"M 237 292 L 464 172 L 464 -172 L 237 -292 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(112,174,186)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(112,174,186)\", \"width\": 1}, \"path\": \"M 474 172 L 1474 17.2 L 1474 -17.2 L 474 -172 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(74,122,148)\", \"line\": {\"color\": \"rgb(74,122,148)\"}, \"type\": \"circle\", \"x0\": 1484, \"x1\": 1501.2, \"xref\": \"x\", \"y0\": -17.2, \"y1\": 17.2, \"yref\": \"y\"}], \"showlegend\": false, \"width\": 1350, \"xaxis\": {\"range\": [-50, 1605.45], \"showgrid\": false, \"tickfont\": {\"size\": 28}, \"tickmode\": \"array\", \"ticktext\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], \"tickvals\": [0.0, 152.9, 305.8, 458.70000000000005, 611.6, 764.5, 917.4000000000001, 1070.3, 1223.2, 1376.1000000000001, 1529.0], \"title\": \"Time (years)\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}, \"yaxis\": {\"range\": [-920, 900], \"showgrid\": false, \"showticklabels\": false, \"title\": \"Number of candidates\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}}, {\"showLink\": true, \"linkText\": \"Export to plot.ly\", \"plotlyServerURL\": \"https://plot.ly\"})});</script>"
+      ],
+      "text/vnd.plotly.v1+html": [
+       "<div id=\"ec7bdc91-4303-47ac-a811-8a11e2e99d90\" style=\"height: 900px; width: 1350px;\" class=\"plotly-graph-div\"></div><script type=\"text/javascript\">require([\"plotly\"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL=\"https://plot.ly\";Plotly.newPlot(\"ec7bdc91-4303-47ac-a811-8a11e2e99d90\", [{\"mode\": \"text\", \"text\": [\"Discovery\", \"Pre-Clinical\", \"Clinical Trials\", \"Approval\"], \"textfont\": {\"color\": \"rgb(44,58,71,1)\", \"size\": 30}, \"x\": [88.5, 350.5, 974.0, 1496.5], \"y\": [850, 850, 850, 850], \"type\": \"scatter\", \"uid\": \"14492c1b-b023-4632-9732-331d5d57c1d8\"}], {\"annotations\": [{\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"10,000\", \"x\": 10, \"xref\": \"x\", \"y\": -738, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"50\", \"x\": 247, \"xref\": \"x\", \"y\": -342, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"10\", \"x\": 484, \"xref\": \"x\", \"y\": -222, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"1\", \"x\": 1492.6, \"xref\": \"x\", \"y\": -67.2, \"yref\": \"y\"}], \"height\": 900, \"margin\": {\"l\": 10, \"r\": 10}, \"paper_bgcolor\": \"rgba(0,0,0,0)\", \"plot_bgcolor\": \"rgba(0,0,0,0)\", \"shapes\": [{\"fillcolor\": \"rgb(219,234,240)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(219,234,240)\", \"width\": 1}, \"path\": \"M 0 688 L 227 292 L 227 -292 L 0 -688 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(168,202,219)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(168,202,219)\", \"width\": 1}, \"path\": \"M 237 292 L 464 172 L 464 -172 L 237 -292 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(112,174,186)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(112,174,186)\", \"width\": 1}, \"path\": \"M 474 172 L 1474 17.2 L 1474 -17.2 L 474 -172 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(74,122,148)\", \"line\": {\"color\": \"rgb(74,122,148)\"}, \"type\": \"circle\", \"x0\": 1484, \"x1\": 1501.2, \"xref\": \"x\", \"y0\": -17.2, \"y1\": 17.2, \"yref\": \"y\"}], \"showlegend\": false, \"width\": 1350, \"xaxis\": {\"range\": [-50, 1605.45], \"showgrid\": false, \"tickfont\": {\"size\": 28}, \"tickmode\": \"array\", \"ticktext\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], \"tickvals\": [0.0, 152.9, 305.8, 458.70000000000005, 611.6, 764.5, 917.4000000000001, 1070.3, 1223.2, 1376.1000000000001, 1529.0], \"title\": \"Time (years)\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}, \"yaxis\": {\"range\": [-920, 900], \"showgrid\": false, \"showticklabels\": false, \"title\": \"Number of candidates\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}}, {\"showLink\": true, \"linkText\": \"Export to plot.ly\", \"plotlyServerURL\": \"https://plot.ly\"})});</script>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "layout = go.Layout(\n",
+    "    shapes=shapes,\n",
+    "    height=plot_height,\n",
+    "    width=plot_width,\n",
+    "    margin=dict(\n",
+    "        l=10,\n",
+    "        r=10),\n",
+    "    showlegend=False,\n",
+    "    annotations=value_annots,\n",
+    "    paper_bgcolor='rgba(0,0,0,0)', \n",
+    "    plot_bgcolor='rgba(0,0,0,0)',\n",
+    "    xaxis=\n",
+    "    dict(\n",
+    "        zeroline=False,\n",
+    "        showgrid=False,\n",
+    "        tickmode='array',\n",
+    "        ticktext=tick_labels, \n",
+    "        tickvals=tick_vals,\n",
+    "        tickfont=dict(\n",
+    "            size=28),\n",
+    "        title='Time (years)', \n",
+    "        titlefont=dict(\n",
+    "            size=28),\n",
+    "        range=[-50, x_max]\n",
+    "        ),\n",
+    "    yaxis=dict(\n",
+    "        showticklabels=False,\n",
+    "        zeroline=False,\n",
+    "        showgrid=False,\n",
+    "        title='Number of candidates',\n",
+    "        titlefont=dict(\n",
+    "            size=28),\n",
+    "        range=[y_min, y_max],\n",
+    "\n",
+    "    )\n",
+    ")\n",
+    " \n",
+    "fig = go.Figure(data=data, layout=layout)\n",
+    "plotly.offline.iplot(fig)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "application/vnd.plotly.v1+json": {
+       "config": {
+        "linkText": "Export to plot.ly",
+        "plotlyServerURL": "https://plot.ly",
+        "showLink": true
+       },
+       "data": [
+        {
+         "mode": "text",
+         "text": [
+          "Discovery",
+          "Pre-Clinical",
+          "Clinical Trials",
+          "Approval"
+         ],
+         "textfont": {
+          "color": "rgb(44,58,71,1)",
+          "size": 30
+         },
+         "type": "scatter",
+         "uid": "28d8fd3d-44ab-4faa-9d7a-5eaa1dd1ec39",
+         "x": [
+          88.5,
+          350.5,
+          974,
+          1496.5
+         ],
+         "y": [
+          850,
+          850,
+          850,
+          850
+         ]
+        }
+       ],
+       "layout": {
+        "annotations": [
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "10,000",
+          "x": 161,
+          "xref": "x",
+          "y": -738,
+          "yref": "y"
+         },
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "50",
+          "x": 247,
+          "xref": "x",
+          "y": -342,
+          "yref": "y"
+         },
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "10",
+          "x": 484,
+          "xref": "x",
+          "y": -222,
+          "yref": "y"
+         },
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "1",
+          "x": 1492.6,
+          "xref": "x",
+          "y": -67.2,
+          "yref": "y"
+         }
+        ],
+        "height": 900,
+        "margin": {
+         "l": 10,
+         "r": 10
+        },
+        "paper_bgcolor": "rgba(0,0,0,0)",
+        "plot_bgcolor": "rgba(0,0,0,0)",
+        "shapes": [
+         {
+          "fillcolor": "rgb(219,234,240)",
+          "layer": "above",
+          "line": {
+           "color": "rgb(219,234,240)",
+           "width": 1
+          },
+          "path": "M 151 688 L 227 292 L 227 -292 L 151 -688 Z",
+          "type": "path"
+         },
+         {
+          "fillcolor": "rgb(168,202,219)",
+          "layer": "above",
+          "line": {
+           "color": "rgb(168,202,219)",
+           "width": 1
+          },
+          "path": "M 237 292 L 464 172 L 464 -172 L 237 -292 Z",
+          "type": "path"
+         },
+         {
+          "fillcolor": "rgb(112,174,186)",
+          "layer": "above",
+          "line": {
+           "color": "rgb(112,174,186)",
+           "width": 1
+          },
+          "path": "M 474 172 L 1474 17.2 L 1474 -17.2 L 474 -172 Z",
+          "type": "path"
+         },
+         {
+          "fillcolor": "rgb(74,122,148)",
+          "line": {
+           "color": "rgb(74,122,148)"
+          },
+          "type": "circle",
+          "x0": 1484,
+          "x1": 1501.2,
+          "xref": "x",
+          "y0": -17.2,
+          "y1": 17.2,
+          "yref": "y"
+         }
+        ],
+        "showlegend": false,
+        "width": 1350,
+        "xaxis": {
+         "range": [
+          -50,
+          1605.45
+         ],
+         "showgrid": false,
+         "tickfont": {
+          "size": 28
+         },
+         "tickmode": "array",
+         "ticktext": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+         ],
+         "tickvals": [
+          0,
+          152.9,
+          305.8,
+          458.70000000000005,
+          611.6,
+          764.5,
+          917.4000000000001,
+          1070.3,
+          1223.2,
+          1376.1000000000001,
+          1529
+         ],
+         "title": "Time (years)",
+         "titlefont": {
+          "size": 28
+         },
+         "zeroline": false
+        },
+        "yaxis": {
+         "range": [
+          -920,
+          900
+         ],
+         "showgrid": false,
+         "showticklabels": false,
+         "title": "Number of candidates",
+         "titlefont": {
+          "size": 28
+         },
+         "zeroline": false
+        }
+       }
+      },
+      "text/html": [
+       "<div id=\"21d96faa-f752-48bb-996e-80122b0df629\" style=\"height: 900px; width: 1350px;\" class=\"plotly-graph-div\"></div><script type=\"text/javascript\">require([\"plotly\"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL=\"https://plot.ly\";Plotly.newPlot(\"21d96faa-f752-48bb-996e-80122b0df629\", [{\"mode\": \"text\", \"text\": [\"Discovery\", \"Pre-Clinical\", \"Clinical Trials\", \"Approval\"], \"textfont\": {\"color\": \"rgb(44,58,71,1)\", \"size\": 30}, \"x\": [88.5, 350.5, 974.0, 1496.5], \"y\": [850, 850, 850, 850], \"type\": \"scatter\", \"uid\": \"28d8fd3d-44ab-4faa-9d7a-5eaa1dd1ec39\"}], {\"annotations\": [{\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"10,000\", \"x\": 161, \"xref\": \"x\", \"y\": -738, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"50\", \"x\": 247, \"xref\": \"x\", \"y\": -342, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"10\", \"x\": 484, \"xref\": \"x\", \"y\": -222, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"1\", \"x\": 1492.6, \"xref\": \"x\", \"y\": -67.2, \"yref\": \"y\"}], \"height\": 900, \"margin\": {\"l\": 10, \"r\": 10}, \"paper_bgcolor\": \"rgba(0,0,0,0)\", \"plot_bgcolor\": \"rgba(0,0,0,0)\", \"shapes\": [{\"fillcolor\": \"rgb(219,234,240)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(219,234,240)\", \"width\": 1}, \"path\": \"M 151 688 L 227 292 L 227 -292 L 151 -688 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(168,202,219)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(168,202,219)\", \"width\": 1}, \"path\": \"M 237 292 L 464 172 L 464 -172 L 237 -292 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(112,174,186)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(112,174,186)\", \"width\": 1}, \"path\": \"M 474 172 L 1474 17.2 L 1474 -17.2 L 474 -172 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(74,122,148)\", \"line\": {\"color\": \"rgb(74,122,148)\"}, \"type\": \"circle\", \"x0\": 1484, \"x1\": 1501.2, \"xref\": \"x\", \"y0\": -17.2, \"y1\": 17.2, \"yref\": \"y\"}], \"showlegend\": false, \"width\": 1350, \"xaxis\": {\"range\": [-50, 1605.45], \"showgrid\": false, \"tickfont\": {\"size\": 28}, \"tickmode\": \"array\", \"ticktext\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], \"tickvals\": [0.0, 152.9, 305.8, 458.70000000000005, 611.6, 764.5, 917.4000000000001, 1070.3, 1223.2, 1376.1000000000001, 1529.0], \"title\": \"Time (years)\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}, \"yaxis\": {\"range\": [-920, 900], \"showgrid\": false, \"showticklabels\": false, \"title\": \"Number of candidates\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}}, {\"showLink\": true, \"linkText\": \"Export to plot.ly\", \"plotlyServerURL\": \"https://plot.ly\"})});</script>"
+      ],
+      "text/vnd.plotly.v1+html": [
+       "<div id=\"21d96faa-f752-48bb-996e-80122b0df629\" style=\"height: 900px; width: 1350px;\" class=\"plotly-graph-div\"></div><script type=\"text/javascript\">require([\"plotly\"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL=\"https://plot.ly\";Plotly.newPlot(\"21d96faa-f752-48bb-996e-80122b0df629\", [{\"mode\": \"text\", \"text\": [\"Discovery\", \"Pre-Clinical\", \"Clinical Trials\", \"Approval\"], \"textfont\": {\"color\": \"rgb(44,58,71,1)\", \"size\": 30}, \"x\": [88.5, 350.5, 974.0, 1496.5], \"y\": [850, 850, 850, 850], \"type\": \"scatter\", \"uid\": \"28d8fd3d-44ab-4faa-9d7a-5eaa1dd1ec39\"}], {\"annotations\": [{\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"10,000\", \"x\": 161, \"xref\": \"x\", \"y\": -738, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"50\", \"x\": 247, \"xref\": \"x\", \"y\": -342, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"10\", \"x\": 484, \"xref\": \"x\", \"y\": -222, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"1\", \"x\": 1492.6, \"xref\": \"x\", \"y\": -67.2, \"yref\": \"y\"}], \"height\": 900, \"margin\": {\"l\": 10, \"r\": 10}, \"paper_bgcolor\": \"rgba(0,0,0,0)\", \"plot_bgcolor\": \"rgba(0,0,0,0)\", \"shapes\": [{\"fillcolor\": \"rgb(219,234,240)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(219,234,240)\", \"width\": 1}, \"path\": \"M 151 688 L 227 292 L 227 -292 L 151 -688 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(168,202,219)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(168,202,219)\", \"width\": 1}, \"path\": \"M 237 292 L 464 172 L 464 -172 L 237 -292 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(112,174,186)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(112,174,186)\", \"width\": 1}, \"path\": \"M 474 172 L 1474 17.2 L 1474 -17.2 L 474 -172 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(74,122,148)\", \"line\": {\"color\": \"rgb(74,122,148)\"}, \"type\": \"circle\", \"x0\": 1484, \"x1\": 1501.2, \"xref\": \"x\", \"y0\": -17.2, \"y1\": 17.2, \"yref\": \"y\"}], \"showlegend\": false, \"width\": 1350, \"xaxis\": {\"range\": [-50, 1605.45], \"showgrid\": false, \"tickfont\": {\"size\": 28}, \"tickmode\": \"array\", \"ticktext\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], \"tickvals\": [0.0, 152.9, 305.8, 458.70000000000005, 611.6, 764.5, 917.4000000000001, 1070.3, 1223.2, 1376.1000000000001, 1529.0], \"title\": \"Time (years)\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}, \"yaxis\": {\"range\": [-920, 900], \"showgrid\": false, \"showticklabels\": false, \"title\": \"Number of candidates\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}}, {\"showLink\": true, \"linkText\": \"Export to plot.ly\", \"plotlyServerURL\": \"https://plot.ly\"})});</script>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "# compressed first shape\n",
+    "layout = go.Layout(\n",
+    "    shapes=compressed_shapes,\n",
+    "    height=plot_height,\n",
+    "    width=plot_width,\n",
+    "    margin=dict(\n",
+    "        l=10,\n",
+    "        r=10),\n",
+    "    showlegend=False,\n",
+    "    annotations=compressed_value_annots,\n",
+    "    paper_bgcolor='rgba(0,0,0,0)', \n",
+    "    plot_bgcolor='rgba(0,0,0,0)',\n",
+    "    xaxis=\n",
+    "    dict(\n",
+    "        zeroline=False,\n",
+    "        showgrid=False,\n",
+    "        tickmode='array',\n",
+    "        ticktext=tick_labels, \n",
+    "        tickvals=tick_vals,\n",
+    "        tickfont=dict(\n",
+    "            size=28),\n",
+    "        title='Time (years)', \n",
+    "        titlefont=dict(\n",
+    "            size=28),\n",
+    "        range=[-50, x_max]\n",
+    "        ),\n",
+    "    yaxis=dict(\n",
+    "        showticklabels=False,\n",
+    "        zeroline=False,\n",
+    "        showgrid=False,\n",
+    "        title='Number of candidates',\n",
+    "        titlefont=dict(\n",
+    "            size=28),\n",
+    "        range=[y_min, y_max],\n",
+    "\n",
+    "    )\n",
+    ")\n",
+    " \n",
+    "fig = go.Figure(data=data, layout=layout)\n",
+    "plotly.offline.iplot(fig)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "application/vnd.plotly.v1+json": {
+       "config": {
+        "linkText": "Export to plot.ly",
+        "plotlyServerURL": "https://plot.ly",
+        "showLink": true
+       },
+       "data": [
+        {
+         "mode": "text",
+         "text": [
+          "Discovery",
+          "Pre-Clinical",
+          "Clinical Trials",
+          "Approval"
+         ],
+         "textfont": {
+          "color": "rgb(44,58,71,1)",
+          "size": 30
+         },
+         "type": "scatter",
+         "uid": "32d2d6ee-9c4c-4fa8-a861-313fe5f5e233",
+         "x": [
+          88.5,
+          350.5,
+          974,
+          1496.5
+         ],
+         "y": [
+          850,
+          850,
+          850,
+          850
+         ]
+        }
+       ],
+       "layout": {
+        "annotations": [
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "2,000",
+          "x": 161,
+          "xref": "x",
+          "y": -617,
+          "yref": "y"
+         },
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "50",
+          "x": 247,
+          "xref": "x",
+          "y": -342,
+          "yref": "y"
+         },
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "10",
+          "x": 484,
+          "xref": "x",
+          "y": -222,
+          "yref": "y"
+         },
+         {
+          "font": {
+           "color": "rgb(44,58,71)",
+           "size": 30
+          },
+          "showarrow": false,
+          "text": "1",
+          "x": 1492.6,
+          "xref": "x",
+          "y": -67.2,
+          "yref": "y"
+         }
+        ],
+        "height": 900,
+        "margin": {
+         "l": 10,
+         "r": 10
+        },
+        "paper_bgcolor": "rgba(0,0,0,0)",
+        "plot_bgcolor": "rgba(0,0,0,0)",
+        "shapes": [
+         {
+          "fillcolor": "rgb(219,234,240)",
+          "layer": "above",
+          "line": {
+           "color": "rgb(219,234,240)",
+           "width": 1
+          },
+          "path": "M 151 567 L 227 292 L 227 -292 L 151 -567 Z",
+          "type": "path"
+         },
+         {
+          "fillcolor": "rgb(168,202,219)",
+          "layer": "above",
+          "line": {
+           "color": "rgb(168,202,219)",
+           "width": 1
+          },
+          "path": "M 237 292 L 464 172 L 464 -172 L 237 -292 Z",
+          "type": "path"
+         },
+         {
+          "fillcolor": "rgb(112,174,186)",
+          "layer": "above",
+          "line": {
+           "color": "rgb(112,174,186)",
+           "width": 1
+          },
+          "path": "M 474 172 L 1474 17.2 L 1474 -17.2 L 474 -172 Z",
+          "type": "path"
+         },
+         {
+          "fillcolor": "rgb(74,122,148)",
+          "line": {
+           "color": "rgb(74,122,148)"
+          },
+          "type": "circle",
+          "x0": 1484,
+          "x1": 1501.2,
+          "xref": "x",
+          "y0": -17.2,
+          "y1": 17.2,
+          "yref": "y"
+         }
+        ],
+        "showlegend": false,
+        "width": 1350,
+        "xaxis": {
+         "range": [
+          -50,
+          1605.45
+         ],
+         "showgrid": false,
+         "tickfont": {
+          "size": 28
+         },
+         "tickmode": "array",
+         "ticktext": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+         ],
+         "tickvals": [
+          0,
+          152.9,
+          305.8,
+          458.70000000000005,
+          611.6,
+          764.5,
+          917.4000000000001,
+          1070.3,
+          1223.2,
+          1376.1000000000001,
+          1529
+         ],
+         "title": "Time (years)",
+         "titlefont": {
+          "size": 28
+         },
+         "zeroline": false
+        },
+        "yaxis": {
+         "range": [
+          -920,
+          900
+         ],
+         "showgrid": false,
+         "showticklabels": false,
+         "title": "Number of candidates",
+         "titlefont": {
+          "size": 28
+         },
+         "zeroline": false
+        }
+       }
+      },
+      "text/html": [
+       "<div id=\"b9a6c364-2348-474a-bfbb-d05387c0c7c3\" style=\"height: 900px; width: 1350px;\" class=\"plotly-graph-div\"></div><script type=\"text/javascript\">require([\"plotly\"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL=\"https://plot.ly\";Plotly.newPlot(\"b9a6c364-2348-474a-bfbb-d05387c0c7c3\", [{\"mode\": \"text\", \"text\": [\"Discovery\", \"Pre-Clinical\", \"Clinical Trials\", \"Approval\"], \"textfont\": {\"color\": \"rgb(44,58,71,1)\", \"size\": 30}, \"x\": [88.5, 350.5, 974.0, 1496.5], \"y\": [850, 850, 850, 850], \"type\": \"scatter\", \"uid\": \"32d2d6ee-9c4c-4fa8-a861-313fe5f5e233\"}], {\"annotations\": [{\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"2,000\", \"x\": 161, \"xref\": \"x\", \"y\": -617, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"50\", \"x\": 247, \"xref\": \"x\", \"y\": -342, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"10\", \"x\": 484, \"xref\": \"x\", \"y\": -222, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"1\", \"x\": 1492.6, \"xref\": \"x\", \"y\": -67.2, \"yref\": \"y\"}], \"height\": 900, \"margin\": {\"l\": 10, \"r\": 10}, \"paper_bgcolor\": \"rgba(0,0,0,0)\", \"plot_bgcolor\": \"rgba(0,0,0,0)\", \"shapes\": [{\"fillcolor\": \"rgb(219,234,240)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(219,234,240)\", \"width\": 1}, \"path\": \"M 151 567 L 227 292 L 227 -292 L 151 -567 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(168,202,219)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(168,202,219)\", \"width\": 1}, \"path\": \"M 237 292 L 464 172 L 464 -172 L 237 -292 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(112,174,186)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(112,174,186)\", \"width\": 1}, \"path\": \"M 474 172 L 1474 17.2 L 1474 -17.2 L 474 -172 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(74,122,148)\", \"line\": {\"color\": \"rgb(74,122,148)\"}, \"type\": \"circle\", \"x0\": 1484, \"x1\": 1501.2, \"xref\": \"x\", \"y0\": -17.2, \"y1\": 17.2, \"yref\": \"y\"}], \"showlegend\": false, \"width\": 1350, \"xaxis\": {\"range\": [-50, 1605.45], \"showgrid\": false, \"tickfont\": {\"size\": 28}, \"tickmode\": \"array\", \"ticktext\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], \"tickvals\": [0.0, 152.9, 305.8, 458.70000000000005, 611.6, 764.5, 917.4000000000001, 1070.3, 1223.2, 1376.1000000000001, 1529.0], \"title\": \"Time (years)\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}, \"yaxis\": {\"range\": [-920, 900], \"showgrid\": false, \"showticklabels\": false, \"title\": \"Number of candidates\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}}, {\"showLink\": true, \"linkText\": \"Export to plot.ly\", \"plotlyServerURL\": \"https://plot.ly\"})});</script>"
+      ],
+      "text/vnd.plotly.v1+html": [
+       "<div id=\"b9a6c364-2348-474a-bfbb-d05387c0c7c3\" style=\"height: 900px; width: 1350px;\" class=\"plotly-graph-div\"></div><script type=\"text/javascript\">require([\"plotly\"], function(Plotly) { window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL=\"https://plot.ly\";Plotly.newPlot(\"b9a6c364-2348-474a-bfbb-d05387c0c7c3\", [{\"mode\": \"text\", \"text\": [\"Discovery\", \"Pre-Clinical\", \"Clinical Trials\", \"Approval\"], \"textfont\": {\"color\": \"rgb(44,58,71,1)\", \"size\": 30}, \"x\": [88.5, 350.5, 974.0, 1496.5], \"y\": [850, 850, 850, 850], \"type\": \"scatter\", \"uid\": \"32d2d6ee-9c4c-4fa8-a861-313fe5f5e233\"}], {\"annotations\": [{\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"2,000\", \"x\": 161, \"xref\": \"x\", \"y\": -617, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"50\", \"x\": 247, \"xref\": \"x\", \"y\": -342, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"10\", \"x\": 484, \"xref\": \"x\", \"y\": -222, \"yref\": \"y\"}, {\"font\": {\"color\": \"rgb(44,58,71)\", \"size\": 30}, \"showarrow\": false, \"text\": \"1\", \"x\": 1492.6, \"xref\": \"x\", \"y\": -67.2, \"yref\": \"y\"}], \"height\": 900, \"margin\": {\"l\": 10, \"r\": 10}, \"paper_bgcolor\": \"rgba(0,0,0,0)\", \"plot_bgcolor\": \"rgba(0,0,0,0)\", \"shapes\": [{\"fillcolor\": \"rgb(219,234,240)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(219,234,240)\", \"width\": 1}, \"path\": \"M 151 567 L 227 292 L 227 -292 L 151 -567 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(168,202,219)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(168,202,219)\", \"width\": 1}, \"path\": \"M 237 292 L 464 172 L 464 -172 L 237 -292 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(112,174,186)\", \"layer\": \"above\", \"line\": {\"color\": \"rgb(112,174,186)\", \"width\": 1}, \"path\": \"M 474 172 L 1474 17.2 L 1474 -17.2 L 474 -172 Z\", \"type\": \"path\"}, {\"fillcolor\": \"rgb(74,122,148)\", \"line\": {\"color\": \"rgb(74,122,148)\"}, \"type\": \"circle\", \"x0\": 1484, \"x1\": 1501.2, \"xref\": \"x\", \"y0\": -17.2, \"y1\": 17.2, \"yref\": \"y\"}], \"showlegend\": false, \"width\": 1350, \"xaxis\": {\"range\": [-50, 1605.45], \"showgrid\": false, \"tickfont\": {\"size\": 28}, \"tickmode\": \"array\", \"ticktext\": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], \"tickvals\": [0.0, 152.9, 305.8, 458.70000000000005, 611.6, 764.5, 917.4000000000001, 1070.3, 1223.2, 1376.1000000000001, 1529.0], \"title\": \"Time (years)\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}, \"yaxis\": {\"range\": [-920, 900], \"showgrid\": false, \"showticklabels\": false, \"title\": \"Number of candidates\", \"titlefont\": {\"size\": 28}, \"zeroline\": false}}, {\"showLink\": true, \"linkText\": \"Export to plot.ly\", \"plotlyServerURL\": \"https://plot.ly\"})});</script>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "# compressed & shorter first shape\n",
+    "\n",
+    "layout = go.Layout(\n",
+    "    shapes=short_shapes,\n",
+    "    height=plot_height,\n",
+    "    width=plot_width,\n",
+    "    margin=dict(\n",
+    "        l=10,\n",
+    "        r=10),\n",
+    "    showlegend=False,\n",
+    "    annotations=short_value_annots,\n",
+    "    paper_bgcolor='rgba(0,0,0,0)', \n",
+    "    plot_bgcolor='rgba(0,0,0,0)',\n",
+    "    xaxis=\n",
+    "    dict(\n",
+    "        zeroline=False,\n",
+    "        showgrid=False,\n",
+    "        tickmode='array',\n",
+    "        ticktext=tick_labels, \n",
+    "        tickvals=tick_vals,\n",
+    "        tickfont=dict(\n",
+    "            size=28),\n",
+    "        title='Time (years)', \n",
+    "        titlefont=dict(\n",
+    "            size=28),\n",
+    "        range=[-50, x_max]\n",
+    "        ),\n",
+    "    yaxis=dict(\n",
+    "        showticklabels=False,\n",
+    "        zeroline=False,\n",
+    "        showgrid=False,\n",
+    "        title='Number of candidates',\n",
+    "        titlefont=dict(\n",
+    "            size=28),\n",
+    "        range=[y_min, y_max],\n",
+    "\n",
+    "    )\n",
+    ")\n",
+    " \n",
+    "fig = go.Figure(data=data, layout=layout)\n",
+    "plotly.offline.iplot(fig)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.6.6"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
